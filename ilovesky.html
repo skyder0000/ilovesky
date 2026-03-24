@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ilovesky — living portrait</title>
+
+<style>
+body {
+  margin: 0;
+  background: black;
+  overflow: hidden;
+  font-family: monospace;
+  cursor: none;
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Cursor */
+#cursor {
+  position: fixed;
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+#cursor-ring {
+  position: fixed;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+/* Text */
+#text {
+  position: fixed;
+  bottom: 10%;
+  width: 100%;
+  text-align: center;
+  color: rgba(255,255,255,0.7);
+  font-size: 20px;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="canvas"></canvas>
+<canvas id="hidden" style="display:none;"></canvas>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+<div id="text">you feel like home.</div>
+
+<script>
+const WORD = "ilovesky";
+const COLS = 120;
+const ROWS = 70;
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const hidden = document.getElementById("hidden");
+const hctx = hidden.getContext("2d");
+
+let W, H;
+let particles = [];
+let mouse = {x:-9999, y:-9999};
+
+function resize(){
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* LOAD YOUR IMAGE HERE */
+function loadImage(){
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+
+  // 🔥 CHANGE THIS TO YOUR IMAGE
+  img.src = "https://images.unsplash.com/photo-1494790108377-be9c29b29330";
+
+  img.onload = () => {
+    hidden.width = COLS;
+    hidden.height = ROWS;
+
+    hctx.drawImage(img, 0, 0, COLS, ROWS);
+
+    const data = hctx.getImageData(0,0,COLS,ROWS).data;
+
+    particles = [];
+    let index = 0;
+
+    for(let y=0;y<ROWS;y++){
+      for(let x=0;x<COLS;x++){
+
+        const i = (y*COLS + x)*4;
+        const r = data[i];
+        const g = data[i+1];
+        const b = data[i+2];
+
+        const brightness = (0.299*r + 0.587*g + 0.114*b)/255;
+
+        const tx = (W/2 - COLS*4) + x*8;
+        const ty = (H/2 - ROWS*4) + y*8;
+
+        const angle = Math.random()*Math.PI*2;
+        const radius = 300 + Math.random()*400;
+
+        particles.push({
+          char: WORD[index % WORD.length],
+          tx, ty,
+          x: W/2 + Math.cos(angle)*radius,
+          y: H/2 + Math.sin(angle)*radius,
+          alpha: 0,
+          target: brightness,
+          glow: 0
+        });
+
+        index++;
+      }
+    }
+
+    animate();
+  };
+}
+
+/* ANIMATION */
+function animate(){
+  ctx.fillStyle = "black";
+  ctx.fillRect(0,0,W,H);
+
+  ctx.font = "8px monospace";
+
+  for(let p of particles){
+
+    // move to position
+    p.x += (p.tx - p.x)*0.05;
+    p.y += (p.ty - p.y)*0.05;
+
+    // mouse repel
+    const dx = p.x - mouse.x;
+    const dy = p.y - mouse.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if(dist < 80){
+      const force = (1 - dist/80)*20;
+      p.x += dx/dist * force;
+      p.y += dy/dist * force;
+      p.glow = 1;
+    } else {
+      p.glow *= 0.9;
+    }
+
+    p.alpha += (p.target - p.alpha)*0.05;
+
+    const base = Math.floor(p.target * 255);
+    const r = base + p.glow*150;
+    const g = base + p.glow*80;
+
+    ctx.fillStyle = `rgba(${r},${g},${base},${p.alpha})`;
+    ctx.fillText(p.char, p.x, p.y);
+  }
+
+  requestAnimationFrame(animate);
+}
+
+/* CURSOR */
+const cursor = document.getElementById("cursor");
+const ring = document.getElementById("cursor-ring");
+
+let cx=0, cy=0, rx=0, ry=0;
+
+document.addEventListener("mousemove", e=>{
+  cx = e.clientX;
+  cy = e.clientY;
+  mouse.x = cx;
+  mouse.y = cy;
+});
+
+function cursorAnim(){
+  cursor.style.left = cx+"px";
+  cursor.style.top = cy+"px";
+
+  rx += (cx - rx)*0.15;
+  ry += (cy - ry)*0.15;
+
+  ring.style.left = rx+"px";
+  ring.style.top = ry+"px";
+
+  requestAnimationFrame(cursorAnim);
+}
+cursorAnim();
+
+/* CLICK → SHOW TEXT */
+document.addEventListener("click", ()=>{
+  document.getElementById("text").style.opacity = 1;
+});
+
+/* START */
+loadImage();
+</script>
+
+</body>
+</html>
